@@ -1,0 +1,130 @@
+---
+title: "gpuanalysis"
+author: "Zachary Culver"
+date: "2023-05-05"
+output: html_document
+---
+SOURCE: Github Copilot
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+# Load in the GPU_input_data_overall.csv file
+GPU_input_data_overall <- read.csv("GPU_input_data_overall.csv")
+
+# Load in the GPU_input_data_pre.csv file
+GPU_input_data_pre <- read.csv("GPU_input_data_pre.csv")
+
+# Load in the GPU_input_data_post.csv file
+GPU_input_data_post <- read.csv("GPU_input_data_post.csv")
+
+```
+
+```{r}
+# Scale the difficulty and btc variables down by 1000
+GPU_input_data_overall$difficulty <- GPU_input_data_overall$difficulty / 1000
+GPU_input_data_overall$btc <- GPU_input_data_overall$btc / 1000
+
+GPU_input_data_pre$difficulty <- GPU_input_data_pre$difficulty / 1000
+GPU_input_data_pre$btc <- GPU_input_data_pre$btc / 1000
+
+GPU_input_data_post$difficulty <- GPU_input_data_post$difficulty / 1000
+GPU_input_data_post$btc <- GPU_input_data_post$btc / 1000
+```
+
+
+```{r}
+#create a variable that is the average of the three prices
+
+# For GPU_input_data_overall
+GPU_input_data_overall$gpu_avg <- rowMeans(GPU_input_data_overall[, c("gtx1080ti", "gtx1660ti", "rtx3070")])
+
+# For GPU_input_data_pre
+GPU_input_data_pre$gpu_avg <- rowMeans(GPU_input_data_pre[, c("gtx1080ti", "gtx1660ti", "rtx3070")])
+
+# For GPU_input_data_post
+GPU_input_data_post$gpu_avg <- rowMeans(GPU_input_data_post[, c("gtx1080ti", "gtx1660ti", "rtx3070")])
+
+```
+
+
+```{r}
+# Fit linear regression models to predict gpu_avg using bond, spy, nvda, difficulty, and btc for each dataset
+glm_overall <- glm(gpu_avg ~ bond + spy + nvda + difficulty + btc, data = GPU_input_data_overall)
+glm_pre <- glm(gpu_avg ~ bond + spy + nvda + difficulty + btc, data = GPU_input_data_pre)
+glm_post <- glm(gpu_avg ~ bond + spy + nvda + difficulty + btc, data = GPU_input_data_post)
+
+# Use each model to predict gpu_avg for all three datasets
+predicted_overall_overall <- predict(glm_overall, newdata = GPU_input_data_overall)
+predicted_overall_pre <- predict(glm_overall, newdata = GPU_input_data_pre)
+predicted_overall_post <- predict(glm_overall, newdata = GPU_input_data_post)
+
+predicted_pre_overall <- predict(glm_pre, newdata = GPU_input_data_overall)
+predicted_pre_pre <- predict(glm_pre, newdata = GPU_input_data_pre)
+predicted_pre_post <- predict(glm_pre, newdata = GPU_input_data_post)
+
+predicted_post_overall <- predict(glm_post, newdata = GPU_input_data_overall)
+predicted_post_pre <- predict(glm_post, newdata = GPU_input_data_pre)
+predicted_post_post <- predict(glm_post, newdata = GPU_input_data_post)
+
+# Create data frames to store the results
+results_overall_overall <- data.frame(actual = GPU_input_data_overall$gpu_avg, predicted = predicted_overall_overall, dataset = "overall", model = "overall")
+results_overall_pre <- data.frame(actual = GPU_input_data_pre$gpu_avg, predicted = predicted_overall_pre, dataset = "pre", model = "overall")
+results_overall_post <- data.frame(actual = GPU_input_data_post$gpu_avg, predicted = predicted_overall_post, dataset = "post", model = "overall")
+
+results_pre_overall <- data.frame(actual = GPU_input_data_overall$gpu_avg, predicted = predicted_pre_overall, dataset = "overall", model = "pre")
+results_pre_pre <- data.frame(actual = GPU_input_data_pre$gpu_avg, predicted = predicted_pre_pre, dataset = "pre", model = "pre")
+results_pre_post <- data.frame(actual = GPU_input_data_post$gpu_avg, predicted = predicted_pre_post, dataset = "post", model = "pre")
+
+results_post_overall <- data.frame(actual = GPU_input_data_overall$gpu_avg, predicted = predicted_post_overall, dataset = "overall", model = "post")
+results_post_pre <- data.frame(actual = GPU_input_data_pre$gpu_avg, predicted = predicted_post_pre, dataset = "pre", model = "post")
+results_post_post <- data.frame(actual = GPU_input_data_post$gpu_avg, predicted = predicted_post_post, dataset = "post", model = "post")
+
+# Combine the results into a single data frame
+results_df <- rbind(results_overall_overall, results_overall_pre, results_overall_post,
+                    results_pre_overall, results_pre_pre, results_pre_post,
+                    results_post_overall, results_post_pre, results_post_post)
+
+# Plot the actual vs. predicted values for each model-dataset combination
+ggplot(results_df, aes(x = actual, y = predicted, color = dataset)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  facet_grid(rows = vars(model), cols = vars(dataset), switch = "both") +
+  labs(x = "Actual GPU Average Price", y = "Predicted GPU Average Price", color = "Dataset") +
+  ggtitle("Comparison of Linear Regression Models Trained on Different Time Periods") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Print the summary of each model
+cat("\nSummary of Model Trained on GPU_input_data_overall:\n")
+summary(glm_overall)
+
+cat("\nSummary of Model Trained on GPU_input_data_pre:\n")
+summary(glm_pre)
+
+cat("\nSummary of Model Trained on GPU_input_data_post:\n")
+summary(glm_post)
+```
+
+```{r}
+
+# Fit a null model with only an intercept term to each dataset
+null_model_overall <- glm(gpu_avg ~ 1, data = GPU_input_data_overall)
+null_model_pre <- glm(gpu_avg ~ 1, data = GPU_input_data_pre)
+null_model_post <- glm(gpu_avg ~ 1, data = GPU_input_data_post)
+
+# Compute the AIC value for each null model
+aic_null_overall <- AIC(null_model_overall)
+aic_null_pre <- AIC(null_model_pre)
+aic_null_post <- AIC(null_model_post)
+
+# Print the AIC values
+cat("AIC for null model on GPU_input_data_overall: ", aic_null_overall, "\n")
+cat("AIC for null model on GPU_input_data_pre: ", aic_null_pre, "\n")
+cat("AIC for null model on GPU_input_data_post: ", aic_null_post, "\n")
+```
+
+
+
+
